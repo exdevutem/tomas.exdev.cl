@@ -17,32 +17,32 @@ export const voteService = {
   },
 
   // Verificar si un usuario ya votó por una postulación
-  hasUserVoted: (userId: string, applicationId: number): boolean => {
+  hasUserVoted: (userId: string, applicationRut: string): boolean => {
     const votes = voteService.getAllVotes();
     return votes.some(
-      (vote) => vote.userId === userId && vote.applicationId === applicationId
+      (vote) => vote.userId === userId && vote.applicationRut === applicationRut
     );
   },
 
   // Obtener el voto de un usuario para una postulación
-  getUserVote: (userId: string, applicationId: number): Vote | undefined => {
+  getUserVote: (userId: string, applicationRut: string): Vote | undefined => {
     const votes = voteService.getAllVotes();
     return votes.find(
-      (vote) => vote.userId === userId && vote.applicationId === applicationId
+      (vote) => vote.userId === userId && vote.applicationRut === applicationRut
     );
   },
 
   // Obtener resumen de votos por postulación
-  getVoteSummary: (applicationId: number): VoteSummary => {
+  getVoteSummary: (applicationRut: string): VoteSummary => {
     const votes = voteService.getAllVotes().filter(
-      (vote) => vote.applicationId === applicationId
+      (vote) => vote.applicationRut === applicationRut
     );
 
     const aprobar = votes.filter((vote) => vote.vote === "aprobar").length;
     const rechazar = votes.filter((vote) => vote.vote === "rechazar").length;
 
     return {
-      applicationId,
+      applicationRut,
       totalVotes: votes.length,
       aprobar,
       rechazar,
@@ -53,7 +53,7 @@ export const voteService = {
   // Obtener todos los resúmenes de votos
   getAllVoteSummaries: (): VoteSummary[] => {
     const votes = voteService.getAllVotes();
-    const applicationIds = [...new Set(votes.map((vote) => vote.applicationId))];
+    const applicationIds = [...new Set(votes.map((vote) => vote.applicationRut))];
 
     return applicationIds.map((id) => voteService.getVoteSummary(id));
   },
