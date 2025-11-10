@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Funciones auxiliares para verificar permisos
+    function hasPermission(permission) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.hasAny([permission]);
+    }
+
+    function userOwnsDocument() {
+      return request.auth.uid == resource.data.userId;
+    }
+
+    // ============================================
+    // COLECCIÓN: users
+    // ============================================
+    match /users/{userId} {
+      // Un usuario puede leer su propio documento
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Un usuario puede actualizar su propio documento (pero no puede modificar permisos)
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['permissions']);
+
+      // Un usuario puede crear su propio documento
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Solo admin puede escribir permisos (requiere permiso especial - no implementado en este nivel)
+      // Los permisos deben ser actualizados desde Firebase Console
+    }
+
+    // ============================================
+    // COLECCIÓN: applications
+    // ============================================
+    match /applications/{applicationId} {
+      // Leer aplicaciones: requiere permiso "applications.view"
+      allow read: if request.auth != null && hasPermission('applications.view');
+
+      // Escribir aplicaciones: solo para sincronización desde admin
+      // Se controla mediante credenciales de servicio (no desde cliente)
+      allow write: if false;
+
+      // ============================================
+      // SUB-COLECCIÓN: applications/{applicationId}/votes
+      // ============================================
+      match /votes/{voteId} {
+        // Leer votos: requiere permiso "applications.vote.view"
+        allow read: if request.auth != null && hasPermission('applications.vote.view');
+
+        // Crear voto: requiere permiso "applications.vote.create"
+        // Solo el usuario propietario del voto puede crear/actualizar su propio voto
+        allow create: if request.auth != null &&
+                         hasPermission('applications.vote.create') &&
+                         request.resource.data.userId == request.auth.uid;
+
+        // Actualizar voto: requiere permiso "applications.vote.create"
+        // Solo el usuario propietario puede actualizar su voto
+        allow update: if request.auth != null &&
+                         hasPermission('applications.vote.create') &&
+                         resource.data.userId == request.auth.uid &&
+                         request.resource.data.userId == request.auth.uid;
+
+        // Eliminar voto: solo el usuario propietario del voto
+        allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      }
+    }
+
+    // ============================================
+    // RUTAS DE RESPALDO (Deny All)
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
