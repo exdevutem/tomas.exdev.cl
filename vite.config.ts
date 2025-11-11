@@ -244,6 +244,8 @@ export default ({ mode }: { mode: string }) => {
       https: {
         cert: './.certs/_cert.pem',
       },
+      // Proxy solo se usa en modo desarrollo (npm run dev)
+      // En producción, se usa directamente VITE_API_BASE_URL del .env
       proxy: {
         '/api': {
           target: 'https://api-website.exdev.cl',

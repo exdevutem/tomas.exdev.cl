@@ -2,11 +2,25 @@ import { firestore } from "@/lib/firebase.config";
 import { collection, getDocs, setDoc, doc } from "firebase/firestore";
 import type { Application } from "@/types/application";
 
+// Determinar la URL base de la API según el entorno
+const getApiBaseUrl = (): string => {
+  const mode = import.meta.env.MODE;
+  
+  // En desarrollo (local), usar el proxy /api
+  if (mode === "development") {
+    return "/api";
+  }
+  
+  // En producción, usar la URL del .env
+  return import.meta.env.VITE_API_BASE_URL || "";
+};
+
 export const applicationService = {
   // Obtener todas las aplicaciones de la API
   getAllApplicationsFromAPI: async (): Promise<Application[]> => {
     try {
-      const response = await fetch("/api/applications");
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/applications`);
       if (!response.ok) {
         throw new Error(`Error al obtener aplicaciones de la API: ${response.status}`);
       }
