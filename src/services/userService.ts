@@ -99,7 +99,7 @@ export const userService = {
   // Obtener votos de un usuario
   getUserVotes: async (userId: string) => {
     try {
-      const votes = [];
+      const votes: Array<{ applicationRut: string; userId: string; userName: string; userEmail: string; vote: "aprobar" | "rechazar"; justification: string; timestamp: string }> = [];
       // Obtener todas las aplicaciones
       const applicationsRef = collection(firestore, "applications");
       const applicationsSnapshot = await getDocs(applicationsRef);
@@ -110,9 +110,15 @@ export const userService = {
         const voteSnapshot = await getDoc(voteRef);
         
         if (voteSnapshot.exists()) {
+          const voteData = voteSnapshot.data();
           votes.push({
             applicationRut: appDoc.id,
-            ...voteSnapshot.data(),
+            userId: voteData.userId,
+            userName: voteData.userName,
+            userEmail: voteData.userEmail,
+            vote: voteData.vote,
+            justification: voteData.justification,
+            timestamp: voteData.timestamp,
           });
         }
       }

@@ -58,6 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const ref = doc(firestore, "users", credential.user.uid);
       await setDoc(ref, {
         email: credential.user.email,
+        displayName: credential.user.displayName,
+        photoURL: credential.user.photoURL,
         permissions: [],
       }, { merge: true });
     } catch (error) {
