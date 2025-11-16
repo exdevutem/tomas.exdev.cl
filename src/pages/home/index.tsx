@@ -5,13 +5,13 @@ import { ApplicationDetailsModal } from "@/components/ApplicationDetailsModal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Loader2, AlertCircle, LogOut, RefreshCw, Lock } from "lucide-react";
+import { Users, Loader2, AlertCircle, LogOut, RefreshCw, Lock, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { applicationService } from "@/services/applicationService";
 
 export const Home = () => {
-  const { canViewApplications, canSync } = usePermissions();
+  const { canViewApplications, canSync, canListUsers } = usePermissions();
   const [applications, setApplications] = useState<Application[]>([]);
   const [totalApplications, setTotalApplications] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -209,15 +209,28 @@ export const Home = () => {
                   <p className="text-sm text-muted-foreground">{user.email}</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSignOut}
-                className="flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Cerrar sesión
-              </Button>
+              <div className="flex items-center gap-2">
+                {canListUsers() && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.location.href = '/admin/users'}
+                    className="flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Admin Usuarios
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Cerrar sesión
+                </Button>
+              </div>
             </div>
           )}
         </div>
