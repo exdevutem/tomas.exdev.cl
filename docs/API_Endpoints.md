@@ -1270,9 +1270,9 @@ Todos los endpoints retornan errores en el siguiente formato:
    - `GOOGLE_REDIRECT_URI`
 
 2. **Límites de Cloudflare Workers**:
-   - CPU Time: 50ms por request (plan gratuito)
+   - CPU Time: 10ms por request (plan gratuito), 50ms (plan paid)
    - Request size: 100MB
-   - Response size: sin límite
+   - Response size: 25MB
    - Subrequests: 50 por request
 
 3. **Middleware Recomendado**:
