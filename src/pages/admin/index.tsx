@@ -105,10 +105,19 @@ export const AdminUsers = () => {
             </div>
             <CardDescription>No tienes permiso para ver la lista de usuarios</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Necesitas el permiso "admin.user.list" para acceder a esta página.
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar sesión
+            </Button>
           </CardContent>
         </Card>
       </div>
