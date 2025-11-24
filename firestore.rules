@@ -6,21 +6,69 @@ service cloud.firestore {
     // ============================
     // Helpers
     // ============================
-    function getCurrentUser() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+
+    /**
+     * Verificar si el usuario pertenece a un grupo
+     * Los grupos se verifican en el documento permission-groups/{groupName}
+     */
+    function userInGroup(groupName) {
+      let userEmail = request.auth.token.email;
+      return get(/databases/$(database)/documents/permission-groups/$(groupName)).data.users.hasAny([userEmail]);
     }
 
-    function hasPermission(permission) {
-      return getCurrentUser().data.permissions.hasAny([permission]);
+    /**
+     * Verificar si el usuario tiene un permiso
+     * Se busca en todos los grupos a los que pertenece
+     */
+    function hasPermission(permissionNeeded) {
+      let userEmail = request.auth.token.email;
+
+      // Definir los permisos de cada grupo
+      let superadminPerms = [
+        'users.list', 'users.edit', 'users.delete', 'users.assign-groups',
+        'votes.delete', 'votes.view',
+        'applications.view', 'applications.create', 'applications.edit',
+        'applications.delete', 'applications.vote'
+      ];
+      let userAdminPerms = [
+        'users.edit', 'users.assign-groups',
+        'votes.view',
+        'applications.view', 'applications.vote'
+      ];
+      let voteAdminPerms = [
+        'votes.delete', 'votes.view',
+        'applications.view'
+      ];
+      let miembroPerms = [
+        'applications.view', 'applications.vote'
+      ];
+      let traineePerms = [
+        'applications.view'
+      ];
+
+      // Verificar si el usuario está en algún grupo que tiene el permiso
+      return (
+        (userInGroup('superadmin') && superadminPerms.hasAny([permissionNeeded])) ||
+        (userInGroup('user-admin') && userAdminPerms.hasAny([permissionNeeded])) ||
+        (userInGroup('vote-admin') && voteAdminPerms.hasAny([permissionNeeded])) ||
+        (userInGroup('miembro') && miembroPerms.hasAny([permissionNeeded])) ||
+        (userInGroup('trainee') && traineePerms.hasAny([permissionNeeded]))
+      );
     }
 
     function userOwnsDocument() {
       return request.auth.uid == resource.data.userId;
     }
 
-    // Para updates de users: saber si se está modificando "permissions"
-    function isChangingPermissions() {
-      return request.resource.data.permissions != resource.data.permissions;
+    // ============================
+    // COLECCIÓN: permission-groups
+    // ============================
+    match /permission-groups/{groupName} {
+      // Leer: cualquier usuario autenticado, para listar grupos
+      allow read: if request.auth != null;
+
+      // Escribir: solo superadmin
+      allow write: if request.auth != null && userInGroup('superadmin');
     }
 
     // ============================
@@ -33,37 +81,30 @@ service cloud.firestore {
 
       // Leer user:
       // - el propio usuario
-      // - admins que pueden listar usuarios
-      // - admins que pueden listar permisos de usuario
+      // - user-admin
+      // - superadmin
       allow read: if request.auth != null && (
         isSelf() ||
-        hasPermission('admin.user.list') ||
-        hasPermission('admin.user.permissions.list')
+        userInGroup('user-admin') ||
+        userInGroup('superadmin')
       );
 
       // Crear su propio documento
       allow create: if request.auth != null && isSelf();
 
       // Actualizar:
-      // - Usuario normal: puede editarse a sí mismo pero NO cambiar permissions
-      // - Admin con admin.user.edit: puede editar cualquier user (sin cambiar permissions)
-      // - Cambiar el campo permissions SOLO si tiene permisos para gestionarlos
+      // - Usuario puede actualizar su propio perfil (sin tocar grupos)
+      // - user-admin/superadmin puede actualizar grupos de otros usuarios
       allow update: if request.auth != null && (
-        // Usuario editando su propio perfil (sin tocar permissions)
-        (isSelf() && !isChangingPermissions()) ||
+        // Usuario editando su propio perfil (sin grupos)
+        (isSelf() && !('grupos' in request.resource.data.diff(resource.data).affectedKeys())) ||
 
-        // Admin editando datos de usuario (sin tocar permissions)
-        (hasPermission('admin.user.edit') && !isChangingPermissions()) ||
-
-        // Cambios en permissions: requiere permisos especiales
-        (isChangingPermissions() && (
-          hasPermission('admin.user.permissions.add') ||
-          hasPermission('admin.user.permissions.delete')
-        ))
+        // user-admin/superadmin editando grupos
+        (hasPermission('users.assign-groups'))
       );
 
-      // Eliminar usuario: solo admin con permiso explícito
-      allow delete: if request.auth != null && hasPermission('admin.user.delete');
+      // Eliminar usuario: solo superadmin
+      allow delete: if request.auth != null && userInGroup('superadmin');
     }
 
     // ============================
@@ -74,58 +115,46 @@ service cloud.firestore {
         return request.auth != null;
       }
 
-      // Leer aplicaciones
-      // - permiso applications.view (lo que ya usas en React)
-      // - opcional: otros permisos admin si quisieras ampliar
+      // Leer aplicaciones: requiere permiso applications.view
       allow read: if isLoggedIn() && hasPermission('applications.view');
 
-      // Crear / actualizar / borrar aplicaciones: applications.sync
-      allow write: if isLoggedIn() && hasPermission('applications.sync');
+      // Crear / actualizar / borrar: requiere permiso applications.create/edit/delete
+      allow create: if isLoggedIn() && hasPermission('applications.create');
+      allow update: if isLoggedIn() && hasPermission('applications.edit');
+      allow delete: if isLoggedIn() && hasPermission('applications.delete');
 
       // ============================
       // SUB-COLECCIÓN: applications/{applicationId}/votes
       // ============================
       match /votes/{voteId} {
         function isOwnerExisting() {
-          // resource solo existe en update/delete
           return request.auth.uid == resource.data.userId;
         }
 
         function isOwnerNew() {
-          // para create se usa request.resource
           return request.auth.uid == request.resource.data.userId;
         }
 
-        // Leer votos:
-        // - permiso applications.vote.view (tu canViewVoteDetails)
-        // - permiso admin.user.vote.list (tu canListUserVotes)
-        allow read: if isLoggedIn() && (
-          hasPermission('applications.vote.view') ||
-          hasPermission('admin.user.vote.list')
-        );
+        // Leer votos: requiere permiso votes.view
+        allow read: if isLoggedIn() && hasPermission('votes.view');
 
-        // Crear voto:
-        // - permiso applications.vote.create (tu canVote)
-        // - solo el propio usuario
+        // Crear voto: requiere permiso applications.vote
         allow create: if isLoggedIn() &&
-          hasPermission('applications.vote.create') &&
+          hasPermission('applications.vote') &&
           isOwnerNew();
 
-        // Actualizar voto:
-        // - permiso applications.vote.create
-        // - solo el propietario
-        // - userId no se puede cambiar
+        // Actualizar voto: requiere permiso applications.vote
         allow update: if isLoggedIn() &&
-          hasPermission('applications.vote.create') &&
+          hasPermission('applications.vote') &&
           isOwnerExisting() &&
           isOwnerNew();
 
         // Eliminar voto:
         // - dueño del voto
-        // - o admin con admin.user.vote.delete
+        // - o usuario con permiso votes.delete
         allow delete: if isLoggedIn() && (
           isOwnerExisting() ||
-          hasPermission('admin.user.vote.delete')
+          hasPermission('votes.delete')
         );
       }
     }

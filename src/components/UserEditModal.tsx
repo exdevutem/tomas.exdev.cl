@@ -14,8 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Loader2, Shield, Trash2, Vote as VoteIcon, Plus, X } from "lucide-react";
+import { Loader2, Shield, Trash2, Vote as VoteIcon } from "lucide-react";
 import { toast } from "sonner";
 
 interface UserEditModalProps {
@@ -30,16 +29,20 @@ interface UserVote extends Vote {
 
 export const UserEditModal = ({ user, open, onOpenChange }: UserEditModalProps) => {
   const {
-    canListUserPermissions,
-    canAddUserPermission,
-    canDeleteUserPermission,
-    canDeleteUser,
+    isUserAdmin,
     canListUserVotes,
     canDeleteUserVote,
   } = usePermissions();
 
-  const [userPermissions, setUserPermissions] = useState<string[]>([]);
-  const [newPermission, setNewPermission] = useState("");
+  const AVAILABLE_GROUPS = [
+    { key: 'superadmin', label: 'Super Admin (Acceso Total)' },
+    { key: 'user-admin', label: 'Admin de Usuarios' },
+    { key: 'vote-admin', label: 'Admin de Votos' },
+    { key: 'miembro', label: 'Miembro (Votar)' },
+    { key: 'trainee', label: 'Trainee (Ver Solo)' },
+  ];
+
+  const [userGroups, setUserGroups] = useState<string[]>([]);
   const [userVotes, setUserVotes] = useState<UserVote[]>([]);
   const [loading, setLoading] = useState(false);
   const [votesLoading, setVotesLoading] = useState(false);
@@ -61,7 +64,9 @@ export const UserEditModal = ({ user, open, onOpenChange }: UserEditModalProps) 
 
   useEffect(() => {
     if (user && open) {
-      setUserPermissions(user.permissions);
+      // Cargar grupos del usuario
+      setUserGroups(user.grupos || []);
+      // Cargar votos si se tiene permiso
       if (canListUserVotes()) {
         loadUserVotes();
       }
@@ -69,43 +74,30 @@ export const UserEditModal = ({ user, open, onOpenChange }: UserEditModalProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, open, canListUserVotes]);
 
-  const handleAddPermission = async () => {
-    if (!user || !newPermission.trim()) return;
-
-    if (!canAddUserPermission()) {
-      toast.error("No tienes permiso para agregar permisos");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await userService.addPermission(user.uid, newPermission.trim());
-      setUserPermissions([...userPermissions, newPermission.trim()]);
-      setNewPermission("");
-      toast.success("Permiso agregado exitosamente");
-    } catch (error) {
-      toast.error("Error al agregar permiso");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemovePermission = async (permission: string) => {
+  const handleToggleGroup = async (groupName: string, isAdding: boolean) => {
     if (!user) return;
 
-    if (!canDeleteUserPermission()) {
-      toast.error("No tienes permiso para eliminar permisos");
+    if (!isUserAdmin()) {
+      toast.error("No tienes permiso para cambiar grupos");
       return;
     }
 
     try {
       setLoading(true);
-      await userService.removePermission(user.uid, permission);
-      setUserPermissions(userPermissions.filter((p) => p !== permission));
-      toast.success("Permiso eliminado exitosamente");
+      let updatedGroups: string[];
+
+      if (isAdding) {
+        updatedGroups = [...userGroups, groupName];
+        toast.success(`Grupo '${groupName}' agregado exitosamente`);
+      } else {
+        updatedGroups = userGroups.filter(g => g !== groupName);
+        toast.success(`Grupo '${groupName}' removido exitosamente`);
+      }
+
+      await userService.setUserGroups(user.uid, updatedGroups);
+      setUserGroups(updatedGroups);
     } catch (error) {
-      toast.error("Error al eliminar permiso");
+      toast.error(isAdding ? "Error al agregar grupo" : "Error al remover grupo");
       console.error(error);
     } finally {
       setLoading(false);
@@ -115,7 +107,7 @@ export const UserEditModal = ({ user, open, onOpenChange }: UserEditModalProps) 
   const handleDeleteUser = async () => {
     if (!user) return;
 
-    if (!canDeleteUser()) {
+    if (!isUserAdmin()) {
       toast.error("No tienes permiso para eliminar usuarios");
       return;
     }
@@ -186,89 +178,61 @@ export const UserEditModal = ({ user, open, onOpenChange }: UserEditModalProps) 
           </div>
         </div>
 
-        <Tabs defaultValue="permissions" className="w-full">
+        <Tabs defaultValue="grupos" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="permissions" disabled={!canListUserPermissions()}>
+            <TabsTrigger value="grupos" disabled={!isUserAdmin()}>
               <Shield className="w-4 h-4 mr-2" />
-              Permisos
+              Grupos
             </TabsTrigger>
             <TabsTrigger value="votes" disabled={!canListUserVotes()}>
               <VoteIcon className="w-4 h-4 mr-2" />
               Votaciones
             </TabsTrigger>
-            <TabsTrigger value="danger" disabled={!canDeleteUser()}>
+            <TabsTrigger value="danger" disabled={!isUserAdmin()}>
               <Trash2 className="w-4 h-4 mr-2" />
               Zona de Peligro
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="permissions">
+          <TabsContent value="grupos">
             <Card>
               <CardHeader>
-                <CardTitle>Gestionar Permisos</CardTitle>
+                <CardTitle>Gestionar Grupos</CardTitle>
                 <CardDescription>
-                  Agrega o elimina permisos del usuario
+                  Asigna o quita grupos del usuario
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {canAddUserPermission() && (
-                  <div className="mb-6">
-                    <Label htmlFor="new-permission">Agregar Nuevo Permiso</Label>
-                    <div className="flex gap-2 mt-2">
-                      <input
-                        id="new-permission"
-                        type="text"
-                        value={newPermission}
-                        onChange={(e) => setNewPermission(e.target.value)}
-                        placeholder="Ej: admin.user.list"
-                        className="flex-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            handleAddPermission();
-                          }
-                        }}
-                      />
-                      <Button
-                        onClick={handleAddPermission}
-                        disabled={loading || !newPermission.trim()}
-                        size="sm"
+                <div className="space-y-3">
+                  {AVAILABLE_GROUPS.map(({ key, label }) => {
+                    const hasGroup = userGroups.includes(key);
+                    return (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between p-3 bg-muted rounded-md border"
                       >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Agregar
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <Label>Permisos Actuales ({userPermissions.length})</Label>
-                  <div className="mt-2 space-y-2 max-h-64 overflow-y-auto">
-                    {userPermissions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Este usuario no tiene permisos asignados
-                      </p>
-                    ) : (
-                      userPermissions.map((permission) => (
-                        <div
-                          key={permission}
-                          className="flex items-center justify-between p-2 bg-muted rounded-md"
-                        >
-                          <Badge variant="secondary">{permission}</Badge>
-                          {canDeleteUserPermission() && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemovePermission(permission)}
-                              disabled={loading}
-                              className="h-6 w-6 p-0"
-                            >
-                              <X className="w-4 h-4 text-destructive" />
-                            </Button>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id={key}
+                            checked={hasGroup}
+                            disabled={loading || !isUserAdmin()}
+                            onChange={(e) => handleToggleGroup(key, e.target.checked)}
+                            className="w-4 h-4"
+                          />
+                          <label
+                            htmlFor={key}
+                            className="flex-1 cursor-pointer font-medium text-sm"
+                          >
+                            {label}
+                          </label>
                         </div>
-                      ))
-                    )}
-                  </div>
+                        <Badge variant={hasGroup ? "default" : "outline"}>
+                          {hasGroup ? "Asignado" : "No asignado"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

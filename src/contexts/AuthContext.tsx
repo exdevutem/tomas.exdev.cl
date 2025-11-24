@@ -8,7 +8,7 @@ import {
   signOut as firebaseSignOut
 } from "firebase/auth";
 import {app, firestore} from "@/lib/firebase.config";
-import {doc, onSnapshot, setDoc} from "firebase/firestore";
+import {doc, getDoc, setDoc, query, where, collection, getDocs} from "firebase/firestore";
 import {AuthContext} from "@/hooks/useAuth";
 import type {Usuario} from "@/types/user";
 
@@ -18,31 +18,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const auth = getAuth(app);
 
+  const loadUserGroups = async (authUser: User) => {
+    try {
+      const userDocRef = doc(firestore, "users", authUser.uid);
+      const userSnapshot = await getDoc(userDocRef);
+
+      if (!userSnapshot.exists()) {
+        console.log({ authUser });
+        await setDoc(userDocRef, {
+          email: authUser.email || "",
+          displayName: authUser.displayName || null,
+          photoURL: authUser.photoURL || null,
+        });
+      }
+
+      const grupoQuery = query(collection(firestore, "permission-groups"), where("users", "array-contains", authUser.email));
+      const grupoSnapshot = await getDocs(grupoQuery);
+      const usuario: Usuario = {
+        email: authUser.email || "",
+        displayName: authUser.displayName || undefined,
+        photoURL: authUser.photoURL || undefined,
+        ...(userSnapshot.exists() ? userSnapshot.data() as Usuario : {}),
+        grupos: grupoSnapshot.docs.map(it => it.id),
+      }
+
+
+      setUsuario(usuario);
+    } catch (error) {
+      console.error("Error al cargar usuario:", error);
+      setUsuario({
+        email: authUser.email || "",
+        displayName: authUser.displayName || undefined,
+        photoURL: authUser.photoURL || undefined,
+        grupos: [],
+      });
+    }
+  };
+
   useEffect(() => {
-    return onAuthStateChanged(auth, (authUser) => {
+    return onAuthStateChanged(auth, async (authUser) => {
       setUser(authUser);
 
       if (authUser) {
-        // Escuchar cambios en vivo del documento del usuario en Firestore
-        const userDocRef = doc(firestore, "users", authUser.uid);
-        const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnapshot) => {
-          if (docSnapshot.exists()) {
-            const userData = docSnapshot.data() as Usuario;
-            setUsuario(userData);
-          } else {
-            // Si el documento no existe, crear uno con valores por defecto
-            setUsuario({
-              email: authUser.email || "",
-              permissions: [],
-            });
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Error al sincronizar usuario:", error);
-          setLoading(false);
-        });
-
-        return () => unsubscribeSnapshot();
+        await loadUserGroups(authUser);
+        setLoading(false);
       } else {
         setUsuario(null);
         setLoading(false);
@@ -54,14 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const provider = new GoogleAuthProvider();
     try {
       const credential = await signInWithPopup(auth, provider);
-
-      const ref = doc(firestore, "users", credential.user.uid);
-      await setDoc(ref, {
-        email: credential.user.email,
-        displayName: credential.user.displayName,
-        photoURL: credential.user.photoURL,
-        permissions: [],
-      }, { merge: true });
+      await loadUserGroups(credential.user);
     } catch (error) {
       console.error("Error al iniciar sesión con Google:", error);
       throw error;

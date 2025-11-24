@@ -235,7 +235,7 @@ export const AdminUsers = () => {
                       <TableCell>{userProfile.email}</TableCell>
                       <TableCell>
                         <span className="text-xs text-muted-foreground">
-                          {userProfile.permissions.length} permiso(s)
+                          {userProfile.grupos?.length || 0} grupo(s)
                         </span>
                       </TableCell>
                       <TableCell className="text-right">

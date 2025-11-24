@@ -1,7 +1,13 @@
 import { firestore } from "@/lib/firebase.config";
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import type { UserProfile } from "@/types/user";
+import type {PermissionGroup, UserProfile} from "@/types/user";
+
+/**
+ * Servicio para gestionar usuarios
+ * Los permisos se gestionan a través de grupos en permission-groups/{groupName}
+ * Cada usuario tiene un campo 'grupos' que es una lista de nombres de grupos
+ */
 
 export const userService = {
   // Obtener todos los usuarios de Firestore
@@ -10,15 +16,19 @@ export const userService = {
       const usersRef = collection(firestore, "users");
       const snapshot = await getDocs(usersRef);
       const users: UserProfile[] = [];
-      
-      snapshot.forEach((doc) => {
-        const data = doc.data();
+
+      const groupsSnapshot = await getDocs(collection(firestore, "permission-groups"));
+      const permissionGroups: PermissionGroup[] = [];
+      groupsSnapshot.forEach((groupDoc) => permissionGroups.push(groupDoc.data() as PermissionGroup));
+
+      snapshot.forEach((userDoc) => {
+        const data = userDoc.data();
         users.push({
-          uid: doc.id,
+          uid: userDoc.id,
           email: data.email || "",
           displayName: data.displayName || null,
           photoURL: data.photoURL || null,
-          permissions: data.permissions || [],
+          grupos: permissionGroups.filter(it => it.users.includes(data.email)).map(it => it.name) || [],
         });
       });
       
@@ -45,7 +55,7 @@ export const userService = {
         email: data.email || "",
         displayName: data.displayName || null,
         photoURL: data.photoURL || null,
-        permissions: data.permissions || [],
+        grupos: data.grupos || [],
       };
     } catch (error) {
       console.error("Error al obtener usuario:", error);
@@ -53,28 +63,17 @@ export const userService = {
     }
   },
 
-  // Agregar permiso a un usuario
-  addPermission: async (uid: string, permission: string): Promise<void> => {
+  /**
+   * Actualizar los grupos de un usuario
+   */
+  setUserGroups: async (uid: string, grupos: string[]): Promise<void> => {
     try {
       const userDocRef = doc(firestore, "users", uid);
       await updateDoc(userDocRef, {
-        permissions: arrayUnion(permission),
+        grupos: grupos,
       });
     } catch (error) {
-      console.error("Error al agregar permiso:", error);
-      throw error;
-    }
-  },
-
-  // Eliminar permiso de un usuario
-  removePermission: async (uid: string, permission: string): Promise<void> => {
-    try {
-      const userDocRef = doc(firestore, "users", uid);
-      await updateDoc(userDocRef, {
-        permissions: arrayRemove(permission),
-      });
-    } catch (error) {
-      console.error("Error al eliminar permiso:", error);
+      console.error("Error al actualizar grupos del usuario:", error);
       throw error;
     }
   },
@@ -87,7 +86,7 @@ export const userService = {
       if (auth.currentUser?.uid === uid) {
         throw new Error("No puedes eliminar tu propio usuario");
       }
-      
+
       const userDocRef = doc(firestore, "users", uid);
       await deleteDoc(userDocRef);
     } catch (error) {
@@ -103,12 +102,12 @@ export const userService = {
       // Obtener todas las aplicaciones
       const applicationsRef = collection(firestore, "applications");
       const applicationsSnapshot = await getDocs(applicationsRef);
-      
+
       // Para cada aplicación, buscar el voto del usuario
       for (const appDoc of applicationsSnapshot.docs) {
         const voteRef = doc(firestore, "applications", appDoc.id, "votes", userId);
         const voteSnapshot = await getDoc(voteRef);
-        
+
         if (voteSnapshot.exists()) {
           const voteData = voteSnapshot.data();
           votes.push({
@@ -122,7 +121,7 @@ export const userService = {
           });
         }
       }
-      
+
       return votes;
     } catch (error) {
       console.error("Error al obtener votos del usuario:", error);
