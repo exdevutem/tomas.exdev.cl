@@ -121,10 +121,19 @@ export const Home = () => {
             </div>
             <CardDescription>No tienes permiso para ver las aplicaciones</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Necesitas el permiso "applications.view" para acceder a las postulaciones.
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar sesión
+            </Button>
           </CardContent>
         </Card>
       </div>

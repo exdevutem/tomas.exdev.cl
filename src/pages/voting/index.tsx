@@ -1,19 +1,30 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { firestoreVoteService } from "@/services/firestoreVoteService";
 import { applicationService } from "@/services/applicationService";
 import type { Application } from "@/types/application";
 import type { VoteSummary } from "@/types/vote";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { ThumbsUp, ThumbsDown, Users, TrendingUp, TrendingDown, Loader2, Lock } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Users, TrendingUp, TrendingDown, Loader2, Lock, LogOut } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/hooks/useAuth";
 
 export const VotingResults = () => {
   const { canViewVoteDetails } = usePermissions();
+  const { signOut } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [voteSummaries, setVoteSummaries] = useState<VoteSummary[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,10 +62,19 @@ export const VotingResults = () => {
             </div>
             <CardDescription>No tienes permiso para ver los resultados de votación</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Necesitas el permiso "applications.vote.view" para acceder a los resultados de las votaciones.
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Cerrar sesión
+            </Button>
           </CardContent>
         </Card>
       </div>
