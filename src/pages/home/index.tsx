@@ -9,6 +9,7 @@ import { Users, Loader2, AlertCircle, LogOut, RefreshCw, Lock, Settings } from "
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { applicationService } from "@/services/applicationService";
+import { firestoreVoteService } from "@/services/firestoreVoteService";
 
 export const Home = () => {
   const { canViewApplications, canSync, canListUsers } = usePermissions();
@@ -29,7 +30,14 @@ export const Home = () => {
         setLoading(true);
         const result = await applicationService.getApplicationsWithAutoSync();
 
-        const sortedApplications = result.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        let sortedApplications = result.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        
+        // Filtrar las aplicaciones que el usuario ya ha votado
+        if (user) {
+          const votedRuts = await firestoreVoteService.getVotedApplicationRuts(user.uid);
+          sortedApplications = sortedApplications.filter(app => !votedRuts.has(app.rut));
+        }
+        
         setApplications(sortedApplications);
         setTotalApplications(sortedApplications.length);
 
@@ -54,7 +62,7 @@ export const Home = () => {
     };
 
     fetchApplications();
-  }, []);
+  }, [user]);
 
   const handleCardClick = (application: Application) => {
     setSelectedApplication(application);
@@ -64,6 +72,17 @@ export const Home = () => {
   const handleModalClose = (open: boolean) => {
     setIsModalOpen(open);
     if (!open) {
+      setSelectedApplication(null);
+    }
+  };
+
+  const handleVoteSubmitted = () => {
+    // Cuando se envía un voto, eliminar la aplicación de la lista
+    if (selectedApplication) {
+      setApplications(prev => prev.filter(app => app.rut !== selectedApplication.rut));
+      setTotalApplications(prev => prev - 1);
+      // Cerrar el modal después de votar
+      setIsModalOpen(false);
       setSelectedApplication(null);
     }
   };
@@ -270,6 +289,7 @@ export const Home = () => {
         application={selectedApplication}
         open={isModalOpen}
         onOpenChange={handleModalClose}
+        onVoteSubmitted={handleVoteSubmitted}
       />
     </div>
   );
