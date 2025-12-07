@@ -11,18 +11,61 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { VotingPanel } from "@/components/VotingPanel";
 import { ApplicationVoteCharts } from "@/components/ApplicationVoteCharts";
-import { ExternalLink, Mail, Calendar, Clock, BookOpen, Users, GraduationCap, User, FileText, BarChart3 } from "lucide-react";
+import { ExternalLink, Mail, Calendar, Clock, BookOpen, Users, GraduationCap, User, FileText, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useEffect } from "react";
 
 interface ApplicationDetailsModalProps {
   application: Application | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onVoteSubmitted?: () => void;
+  onNavigateNext?: () => void;
+  onNavigatePrevious?: () => void;
+  canNavigateNext?: boolean;
+  canNavigatePrevious?: boolean;
+  currentIndex?: number;
+  totalCount?: number;
 }
 
-export const ApplicationDetailsModal = ({ application, open, onOpenChange, onVoteSubmitted }: ApplicationDetailsModalProps) => {
+export const ApplicationDetailsModal = ({ 
+  application, 
+  open, 
+  onOpenChange, 
+  onVoteSubmitted,
+  onNavigateNext,
+  onNavigatePrevious,
+  canNavigateNext = false,
+  canNavigatePrevious = false,
+  currentIndex,
+  totalCount
+}: ApplicationDetailsModalProps) => {
   const { canVote, canViewVoteDetails } = usePermissions();
+  
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Prevent navigation if user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if (event.key === 'ArrowLeft' && canNavigatePrevious && onNavigatePrevious) {
+        event.preventDefault();
+        onNavigatePrevious();
+      } else if (event.key === 'ArrowRight' && canNavigateNext && onNavigateNext) {
+        event.preventDefault();
+        onNavigateNext();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, canNavigateNext, canNavigatePrevious, onNavigateNext, onNavigatePrevious]);
+  
   if (!application) return null;
 
   const formatDate = (dateString: string) => {
@@ -42,6 +85,34 @@ export const ApplicationDetailsModal = ({ application, open, onOpenChange, onVot
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
+        {/* Navigation Arrows */}
+        {(canNavigatePrevious || canNavigateNext) && (
+          <>
+            {canNavigatePrevious && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-50 rounded-full bg-background/80 backdrop-blur-sm shadow-lg hover:bg-background"
+                onClick={onNavigatePrevious}
+                title="Anterior (←)"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </Button>
+            )}
+            {canNavigateNext && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-50 rounded-full bg-background/80 backdrop-blur-sm shadow-lg hover:bg-background"
+                onClick={onNavigateNext}
+                title="Siguiente (→)"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </Button>
+            )}
+          </>
+        )}
+        
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -51,9 +122,16 @@ export const ApplicationDetailsModal = ({ application, open, onOpenChange, onVot
                 {application.rut}
               </DialogDescription>
             </div>
-            <Badge variant="secondary" className="text-sm flex-shrink-0">
-              ID: {application.id}
-            </Badge>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {currentIndex !== undefined && totalCount !== undefined && (
+                <Badge variant="outline" className="text-sm">
+                  {currentIndex + 1} / {totalCount}
+                </Badge>
+              )}
+              <Badge variant="secondary" className="text-sm">
+                ID: {application.id}
+              </Badge>
+            </div>
           </div>
         </DialogHeader>
 

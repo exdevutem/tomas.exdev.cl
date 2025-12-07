@@ -18,6 +18,7 @@ export const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [selectedApplicationIndex, setSelectedApplicationIndex] = useState<number>(-1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -67,7 +68,9 @@ export const Home = () => {
   }, [user]);
 
   const handleCardClick = (application: Application) => {
+    const index = applications.findIndex(app => app.id === application.id);
     setSelectedApplication(application);
+    setSelectedApplicationIndex(index);
     setIsModalOpen(true);
   };
 
@@ -75,17 +78,50 @@ export const Home = () => {
     setIsModalOpen(open);
     if (!open) {
       setSelectedApplication(null);
+      setSelectedApplicationIndex(-1);
+    }
+  };
+
+  const handleNavigateNext = () => {
+    if (selectedApplicationIndex < applications.length - 1) {
+      const nextIndex = selectedApplicationIndex + 1;
+      setSelectedApplicationIndex(nextIndex);
+      setSelectedApplication(applications[nextIndex]);
+    }
+  };
+
+  const handleNavigatePrevious = () => {
+    if (selectedApplicationIndex > 0) {
+      const prevIndex = selectedApplicationIndex - 1;
+      setSelectedApplicationIndex(prevIndex);
+      setSelectedApplication(applications[prevIndex]);
     }
   };
 
   const handleVoteSubmitted = () => {
     // Cuando se envía un voto, eliminar la aplicación de la lista
     if (selectedApplication) {
-      setApplications(prev => prev.filter(app => app.rut !== selectedApplication.rut));
+      const newApplications = applications.filter(app => app.rut !== selectedApplication.rut);
+      setApplications(newApplications);
       setTotalApplications(prev => prev - 1);
-      // Cerrar el modal después de votar
-      setIsModalOpen(false);
-      setSelectedApplication(null);
+      
+      // Ajustar el índice después de eliminar
+      if (newApplications.length > 0) {
+        // Si hay aplicaciones después de la actual, mantener el mismo índice
+        if (selectedApplicationIndex < newApplications.length) {
+          setSelectedApplication(newApplications[selectedApplicationIndex]);
+        } else {
+          // Si no hay aplicaciones después, ir a la anterior
+          const newIndex = newApplications.length - 1;
+          setSelectedApplicationIndex(newIndex);
+          setSelectedApplication(newApplications[newIndex]);
+        }
+      } else {
+        // No hay más aplicaciones, cerrar el modal
+        setIsModalOpen(false);
+        setSelectedApplication(null);
+        setSelectedApplicationIndex(-1);
+      }
     }
   };
 
@@ -311,6 +347,12 @@ export const Home = () => {
         open={isModalOpen}
         onOpenChange={handleModalClose}
         onVoteSubmitted={handleVoteSubmitted}
+        onNavigateNext={handleNavigateNext}
+        onNavigatePrevious={handleNavigatePrevious}
+        canNavigateNext={selectedApplicationIndex < applications.length - 1}
+        canNavigatePrevious={selectedApplicationIndex > 0}
+        currentIndex={selectedApplicationIndex}
+        totalCount={applications.length}
       />
     </div>
   );
