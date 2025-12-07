@@ -9,6 +9,7 @@ import { Users, Loader2, AlertCircle, LogOut, RefreshCw, Lock, Settings } from "
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { applicationService } from "@/services/applicationService";
+import { firestoreVoteService } from "@/services/firestoreVoteService";
 
 export const Home = () => {
   const { canViewApplications, canSync, canListUsers } = usePermissions();
@@ -21,6 +22,7 @@ export const Home = () => {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [autoSyncMessage, setAutoSyncMessage] = useState<string | null>(null);
+  const [apiUnavailable, setApiUnavailable] = useState(false);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
@@ -29,9 +31,17 @@ export const Home = () => {
         setLoading(true);
         const result = await applicationService.getApplicationsWithAutoSync();
 
-        const sortedApplications = result.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        let sortedApplications = result.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        
+        // Filtrar las aplicaciones que el usuario ya ha votado
+        if (user) {
+          const votedRuts = await firestoreVoteService.getVotedApplicationRuts(user.uid);
+          sortedApplications = sortedApplications.filter(app => !votedRuts.has(app.rut));
+        }
+        
         setApplications(sortedApplications);
         setTotalApplications(sortedApplications.length);
+        setApiUnavailable(result.apiUnavailable);
 
         // Mostrar mensaje si se sincronizó automáticamente
         if (result.autoSynced) {
@@ -54,7 +64,7 @@ export const Home = () => {
     };
 
     fetchApplications();
-  }, []);
+  }, [user]);
 
   const handleCardClick = (application: Application) => {
     setSelectedApplication(application);
@@ -64,6 +74,17 @@ export const Home = () => {
   const handleModalClose = (open: boolean) => {
     setIsModalOpen(open);
     if (!open) {
+      setSelectedApplication(null);
+    }
+  };
+
+  const handleVoteSubmitted = () => {
+    // Cuando se envía un voto, eliminar la aplicación de la lista
+    if (selectedApplication) {
+      setApplications(prev => prev.filter(app => app.rut !== selectedApplication.rut));
+      setTotalApplications(prev => prev - 1);
+      // Cerrar el modal después de votar
+      setIsModalOpen(false);
       setSelectedApplication(null);
     }
   };
@@ -81,19 +102,30 @@ export const Home = () => {
       setSyncLoading(true);
       setSyncMessage(null);
 
-      const result = await applicationService.syncIfNeeded(applications);
-
-      if (result.needsSync) {
-        setSyncMessage(`✓ Sincronización completada: ${result.synced} aplicaciones sincronizadas${result.failed > 0 ? `, ${result.failed} errores` : ""}`);
-      } else {
-        setSyncMessage("✓ Los datos ya están sincronizados");
+      const result = await applicationService.syncFromAPI();
+      setSyncMessage(`✓ Sincronización completada: ${result.synced} aplicaciones sincronizadas${result.failed > 0 ? `, ${result.failed} errores` : ""}`);
+      
+      // Recargar las aplicaciones después de sincronizar
+      const updatedResult = await applicationService.getApplicationsWithAutoSync();
+      let sortedApplications = updatedResult.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      
+      if (user) {
+        const votedRuts = await firestoreVoteService.getVotedApplicationRuts(user.uid);
+        sortedApplications = sortedApplications.filter(app => !votedRuts.has(app.rut));
       }
+      
+      setApplications(sortedApplications);
+      setTotalApplications(sortedApplications.length);
+      // Actualizar estado de API basado en el resultado de la recarga
+      setApiUnavailable(updatedResult.apiUnavailable);
 
       // Limpiar mensaje después de 5 segundos
       setTimeout(() => setSyncMessage(null), 5000);
     } catch (error) {
       console.error("Error al sincronizar aplicaciones:", error);
       setSyncMessage(`✗ Error al sincronizar: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      // Si la sincronización falla, marcar la API como no disponible
+      setApiUnavailable(true);
     } finally {
       setSyncLoading(false);
     }
@@ -202,6 +234,14 @@ export const Home = () => {
             </div>
           )}
 
+          {/* API Unavailable warning */}
+          {apiUnavailable && (
+            <div className="mb-4 p-3 rounded-lg text-sm bg-yellow-50 text-yellow-800 border border-yellow-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>La API de aplicaciones no está disponible. Mostrando datos desde Firestore. La sincronización no está disponible.</span>
+            </div>
+          )}
+
           {/* User info and logout */}
           {user && (
             <div className="flex items-center justify-between bg-muted/50 rounded-lg p-4">
@@ -270,6 +310,7 @@ export const Home = () => {
         application={selectedApplication}
         open={isModalOpen}
         onOpenChange={handleModalClose}
+        onVoteSubmitted={handleVoteSubmitted}
       />
     </div>
   );

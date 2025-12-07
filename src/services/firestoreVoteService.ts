@@ -1,5 +1,5 @@
 import { firestore } from "@/lib/firebase.config";
-import { doc, getDoc, setDoc, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, getDocs, collectionGroup, query, where } from "firebase/firestore";
 import type { Vote, VoteSummary } from "@/types/vote";
 
 export const firestoreVoteService = {
@@ -71,6 +71,26 @@ export const firestoreVoteService = {
       };
     } catch (error) {
       console.error("Error al obtener resumen de votos:", error);
+      throw error;
+    }
+  },
+
+  // Obtener todos los RUTs de aplicaciones donde el usuario ha votado
+  getVotedApplicationRuts: async (userId: string): Promise<Set<string>> => {
+    try {
+      const votesQuery = query(
+        collectionGroup(firestore, "votes"),
+        where("userId", "==", userId)
+      );
+      const votesSnapshot = await getDocs(votesQuery);
+      const votedRuts = new Set<string>();
+      votesSnapshot.forEach((doc) => {
+        const vote = doc.data() as Vote;
+        votedRuts.add(vote.applicationRut);
+      });
+      return votedRuts;
+    } catch (error) {
+      console.error("Error al obtener aplicaciones votadas:", error);
       throw error;
     }
   },

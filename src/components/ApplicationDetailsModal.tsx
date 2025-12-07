@@ -18,9 +18,10 @@ interface ApplicationDetailsModalProps {
   application: Application | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onVoteSubmitted?: () => void;
 }
 
-export const ApplicationDetailsModal = ({ application, open, onOpenChange }: ApplicationDetailsModalProps) => {
+export const ApplicationDetailsModal = ({ application, open, onOpenChange, onVoteSubmitted }: ApplicationDetailsModalProps) => {
   const { canVote, canViewVoteDetails } = usePermissions();
   if (!application) return null;
 
@@ -208,7 +209,7 @@ export const ApplicationDetailsModal = ({ application, open, onOpenChange }: App
                       <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-4">
                         Tu Votación
                       </h3>
-                      <VotingPanel applicationRut={application.rut} />
+                      <VotingPanel applicationRut={application.rut} onVoteSubmitted={onVoteSubmitted} />
                     </>
                   )}
                 </div>
