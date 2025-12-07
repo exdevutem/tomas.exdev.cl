@@ -59,6 +59,10 @@ export const Home = () => {
 
   const handleCardClick = (application: Application) => {
     const index = applications.findIndex(app => app.id === application.id);
+    if (index === -1) {
+      console.error('Application not found in list');
+      return;
+    }
     setSelectedApplication(application);
     setSelectedApplicationIndex(index);
     setIsModalOpen(true);

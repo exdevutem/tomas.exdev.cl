@@ -41,9 +41,10 @@ export const ApplicationDetailsModal = ({
     if (!open) return;
     
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Check if user is typing in an input or textarea
+      // Check if user is typing in an input, textarea, select or contenteditable element
       const target = event.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      const tagName = target.tagName.toLowerCase();
+      if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable) {
         return;
       }
       
