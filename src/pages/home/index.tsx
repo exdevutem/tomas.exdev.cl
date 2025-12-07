@@ -107,15 +107,15 @@ export const Home = () => {
       
       // Ajustar el índice después de eliminar
       if (newApplications.length > 0) {
-        // Si hay aplicaciones después de la actual, mantener el mismo índice
-        if (selectedApplicationIndex < newApplications.length) {
-          setSelectedApplication(newApplications[selectedApplicationIndex]);
-        } else {
-          // Si no hay aplicaciones después, ir a la anterior
-          const newIndex = newApplications.length - 1;
-          setSelectedApplicationIndex(newIndex);
-          setSelectedApplication(newApplications[newIndex]);
+        // El índice actual ahora apunta a la siguiente aplicación (porque removimos la actual)
+        // pero necesitamos validar que no exceda el límite
+        let newIndex = selectedApplicationIndex;
+        if (newIndex >= newApplications.length) {
+          // Si el índice está fuera de límites, ir a la última aplicación
+          newIndex = newApplications.length - 1;
         }
+        setSelectedApplicationIndex(newIndex);
+        setSelectedApplication(newApplications[newIndex]);
       } else {
         // No hay más aplicaciones, cerrar el modal
         setIsModalOpen(false);

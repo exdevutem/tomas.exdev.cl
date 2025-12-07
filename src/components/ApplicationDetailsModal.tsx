@@ -47,9 +47,13 @@ export const ApplicationDetailsModal = ({
     if (!open) return;
     
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Prevent navigation if user is typing in an input or textarea
+      // Prevent navigation if user is typing in an input, textarea, or contenteditable element
       const target = event.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (
+        target instanceof HTMLInputElement || 
+        target instanceof HTMLTextAreaElement || 
+        target.contentEditable === 'true'
+      ) {
         return;
       }
       
