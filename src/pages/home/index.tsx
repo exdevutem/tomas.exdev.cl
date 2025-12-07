@@ -17,6 +17,7 @@ export const Home = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [selectedApplicationIndex, setSelectedApplicationIndex] = useState<number>(-1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -57,7 +58,9 @@ export const Home = () => {
   }, []);
 
   const handleCardClick = (application: Application) => {
+    const index = applications.findIndex(app => app.id === application.id);
     setSelectedApplication(application);
+    setSelectedApplicationIndex(index);
     setIsModalOpen(true);
   };
 
@@ -65,6 +68,23 @@ export const Home = () => {
     setIsModalOpen(open);
     if (!open) {
       setSelectedApplication(null);
+      setSelectedApplicationIndex(-1);
+    }
+  };
+
+  const handleNavigatePrevious = () => {
+    if (selectedApplicationIndex > 0) {
+      const newIndex = selectedApplicationIndex - 1;
+      setSelectedApplication(applications[newIndex]);
+      setSelectedApplicationIndex(newIndex);
+    }
+  };
+
+  const handleNavigateNext = () => {
+    if (selectedApplicationIndex < applications.length - 1) {
+      const newIndex = selectedApplicationIndex + 1;
+      setSelectedApplication(applications[newIndex]);
+      setSelectedApplicationIndex(newIndex);
     }
   };
 
@@ -270,6 +290,10 @@ export const Home = () => {
         application={selectedApplication}
         open={isModalOpen}
         onOpenChange={handleModalClose}
+        onNavigatePrevious={handleNavigatePrevious}
+        onNavigateNext={handleNavigateNext}
+        hasPrevious={selectedApplicationIndex > 0}
+        hasNext={selectedApplicationIndex < applications.length - 1}
       />
     </div>
   );

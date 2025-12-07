@@ -11,17 +11,55 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { VotingPanel } from "@/components/VotingPanel";
 import { ApplicationVoteCharts } from "@/components/ApplicationVoteCharts";
-import { ExternalLink, Mail, Calendar, Clock, BookOpen, Users, GraduationCap, User, FileText, BarChart3 } from "lucide-react";
+import { ExternalLink, Mail, Calendar, Clock, BookOpen, Users, GraduationCap, User, FileText, BarChart3, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useEffect } from "react";
 
 interface ApplicationDetailsModalProps {
   application: Application | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onNavigatePrevious?: () => void;
+  onNavigateNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 }
 
-export const ApplicationDetailsModal = ({ application, open, onOpenChange }: ApplicationDetailsModalProps) => {
+export const ApplicationDetailsModal = ({ 
+  application, 
+  open, 
+  onOpenChange, 
+  onNavigatePrevious,
+  onNavigateNext,
+  hasPrevious = false,
+  hasNext = false
+}: ApplicationDetailsModalProps) => {
   const { canVote, canViewVoteDetails } = usePermissions();
+  
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check if user is typing in an input or textarea
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      if (event.key === 'ArrowLeft' && hasPrevious && onNavigatePrevious) {
+        event.preventDefault();
+        onNavigatePrevious();
+      } else if (event.key === 'ArrowRight' && hasNext && onNavigateNext) {
+        event.preventDefault();
+        onNavigateNext();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, hasPrevious, hasNext, onNavigatePrevious, onNavigateNext]);
+  
   if (!application) return null;
 
   const formatDate = (dateString: string) => {
@@ -40,7 +78,32 @@ export const ApplicationDetailsModal = ({ application, open, onOpenChange }: App
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto relative">
+        {/* Navigation Arrows */}
+        {hasPrevious && onNavigatePrevious && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-background/80 hover:bg-background shadow-md"
+            onClick={onNavigatePrevious}
+            aria-label="Postulación anterior"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        )}
+        
+        {hasNext && onNavigateNext && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-background/80 hover:bg-background shadow-md"
+            onClick={onNavigateNext}
+            aria-label="Siguiente postulación"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </Button>
+        )}
+        
         <DialogHeader>
           <div className="flex items-start justify-between gap-4">
             <div>
