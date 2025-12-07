@@ -102,16 +102,28 @@ export const applicationService = {
   },
 
   // Obtener aplicaciones de Firestore y sincronizar automáticamente si es necesario
-  getApplicationsWithAutoSync: async (): Promise<{ applications: Application[]; autoSynced: boolean; syncResult?: { synced: number; failed: number } }> => {
+  getApplicationsWithAutoSync: async (): Promise<{ applications: Application[]; autoSynced: boolean; apiUnavailable: boolean; syncResult?: { synced: number; failed: number } }> => {
     try {
-      // Obtener aplicaciones desde ambas fuentes
-      const [apiApplications, firestoreApplications] = await Promise.all([
-        applicationService.getAllApplicationsFromAPI(),
-        applicationService.getAllApplicationsFromFirestore(),
-      ]);
+      // Primero intentar obtener desde Firestore (siempre disponible)
+      const firestoreApplications = await applicationService.getAllApplicationsFromFirestore();
+      
+      // Intentar obtener aplicaciones desde la API
+      let apiApplications: Application[] | null = null;
+      
+      try {
+        apiApplications = await applicationService.getAllApplicationsFromAPI();
+      } catch (apiError) {
+        console.warn("API de aplicaciones no disponible, usando solo Firestore:", apiError);
+        // Si la API no está disponible, retornar solo las de Firestore
+        return {
+          applications: firestoreApplications,
+          autoSynced: false,
+          apiUnavailable: true,
+        };
+      }
 
-      // Comparar cantidades
-      if (apiApplications.length !== firestoreApplications.length) {
+      // Comparar cantidades si la API está disponible
+      if (apiApplications && apiApplications.length !== firestoreApplications.length) {
         console.log(
           `Diferencia detectada: API tiene ${apiApplications.length} aplicaciones, Firestore tiene ${firestoreApplications.length}. Sincronizando...`
         );
@@ -120,6 +132,7 @@ export const applicationService = {
         return {
           applications: apiApplications,
           autoSynced: true,
+          apiUnavailable: false,
           syncResult,
         };
       }
@@ -128,10 +141,22 @@ export const applicationService = {
       return {
         applications: firestoreApplications,
         autoSynced: false,
+        apiUnavailable: false,
       };
     } catch (error) {
       console.error("Error en getApplicationsWithAutoSync:", error);
       throw error;
+    }
+  },
+
+  // Sincronizar manualmente desde la API a Firestore
+  syncFromAPI: async (): Promise<{ synced: number; failed: number }> => {
+    try {
+      const apiApplications = await applicationService.getAllApplicationsFromAPI();
+      return await applicationService.syncApplicationsToFirestore(apiApplications);
+    } catch (error) {
+      console.error("Error al sincronizar desde API:", error);
+      throw new Error("La API de aplicaciones no está disponible. No se puede sincronizar.");
     }
   },
 };

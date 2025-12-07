@@ -22,6 +22,7 @@ export const Home = () => {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [autoSyncMessage, setAutoSyncMessage] = useState<string | null>(null);
+  const [apiUnavailable, setApiUnavailable] = useState(false);
   const { user, signOut } = useAuth();
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export const Home = () => {
         
         setApplications(sortedApplications);
         setTotalApplications(sortedApplications.length);
+        setApiUnavailable(result.apiUnavailable);
 
         // Mostrar mensaje si se sincronizó automáticamente
         if (result.autoSynced) {
@@ -100,19 +102,30 @@ export const Home = () => {
       setSyncLoading(true);
       setSyncMessage(null);
 
-      const result = await applicationService.syncIfNeeded(applications);
-
-      if (result.needsSync) {
-        setSyncMessage(`✓ Sincronización completada: ${result.synced} aplicaciones sincronizadas${result.failed > 0 ? `, ${result.failed} errores` : ""}`);
-      } else {
-        setSyncMessage("✓ Los datos ya están sincronizados");
+      const result = await applicationService.syncFromAPI();
+      setSyncMessage(`✓ Sincronización completada: ${result.synced} aplicaciones sincronizadas${result.failed > 0 ? `, ${result.failed} errores` : ""}`);
+      
+      // Recargar las aplicaciones después de sincronizar
+      const updatedResult = await applicationService.getApplicationsWithAutoSync();
+      let sortedApplications = updatedResult.applications.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      
+      if (user) {
+        const votedRuts = await firestoreVoteService.getVotedApplicationRuts(user.uid);
+        sortedApplications = sortedApplications.filter(app => !votedRuts.has(app.rut));
       }
+      
+      setApplications(sortedApplications);
+      setTotalApplications(sortedApplications.length);
+      // Actualizar estado de API basado en el resultado de la recarga
+      setApiUnavailable(updatedResult.apiUnavailable);
 
       // Limpiar mensaje después de 5 segundos
       setTimeout(() => setSyncMessage(null), 5000);
     } catch (error) {
       console.error("Error al sincronizar aplicaciones:", error);
       setSyncMessage(`✗ Error al sincronizar: ${error instanceof Error ? error.message : "Error desconocido"}`);
+      // Si la sincronización falla, marcar la API como no disponible
+      setApiUnavailable(true);
     } finally {
       setSyncLoading(false);
     }
@@ -218,6 +231,14 @@ export const Home = () => {
           {syncMessage && (
             <div className={`mb-4 p-3 rounded-lg text-sm ${syncMessage.startsWith("✓") ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
               {syncMessage}
+            </div>
+          )}
+
+          {/* API Unavailable warning */}
+          {apiUnavailable && (
+            <div className="mb-4 p-3 rounded-lg text-sm bg-yellow-50 text-yellow-800 border border-yellow-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>La API de aplicaciones no está disponible. Mostrando datos desde Firestore. La sincronización no está disponible.</span>
             </div>
           )}
 
